@@ -1,2 +1,2 @@
 # Khetihar-Chat
-A serverless agricultural smartt chatbot in a multi-user environment 
+A serverless agricultural smart chatbot in a multi-user environment 
