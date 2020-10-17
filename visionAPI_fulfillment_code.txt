@@ -1,0 +1,66 @@
+const functions = require('firebase-functions');
+const {WebhookClient} = require('dialogflow-fulfillment');
+const {google} = require('googleapis');
+const vision = require('@google-cloud/vision');
+const {Card, Suggestion} = require('dialogflow-fulfillment');
+const axios = require('axios');
+
+var config = {
+apiKey: "AIzaSyBKhMOIcMJv27qtPawL_Wa9VVupJo_PgEg",  
+authDomain: "test-vbdjvh.firebaseapp.com",          
+databaseURL: "https://test-vbdjvh.firebaseio.com",  
+projectId: "test-vbdjvh",    
+storageBucket: "test-vbdjvh.appspot.com",
+messagingSenderId: "560456202467"
+};
+
+const admin = require('firebase-admin');
+admin.initializeApp(config);
+
+process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging
+var bucketName = 'test-vbdjvh.appspot.com';
+
+const serviceAccount = {
+  "type": "service_account",
+  "project_id": "test-vbdjvh",
+  "private_key_id": "5fbbe22def229327c411be8b8ecd39b6340d4258",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCtDB6+vqv5m86J\n2uNunzoshVGe3CwOB0Hv98kPX2BUPTstZkzKM4MsbcpJ263j1ZSFjYkXEcjQtZuO\nxmRh/R9uuVvcb6uWCWY1pVvVUnx6VQb2sS84ku1JBw2G8CZrBkgAJtP77ZBmEls0\n4w9IpFnzpX9BMcQKrHqApNpvf9ZG7YBm4wX/kKdKoYRJHAjqm97BXgcNUgouFbXp\nO/Ivpw9WHT9J710NkrsLYcY8dMxaWT4ps2P/nFqxFVPX5uAt9Vlm2AU997zvSIh+\nieuI94n7RktUfFvQZRxxgZtW0+yCc6xKKXnUOh2jKbaL1vJvxIFnpxa+DHN6TvBd\nazXwxSAtAgMBAAECggEAKG7pjCYfJs6J/tn/RCy+OgLYpGbLgGeft4NNHmNpraU0\n+5GopaJNpwbsOj+zLMYN0vrUKmjEZEfa1gxzDhZHzuZOmX4aOI9vq188yuZgIXFW\nlDOoVe62tNaKCZp5T46DKk3oQDgtAjyNxRi8zHtibTShPEl1hgzw/rgGNgFHvwCC\n/TChYH9T13hHeV3kDMlri+isXMq1YYIr1jvEhcNdv7lAggfdvxKbwoxcdrlzM0Kp\nAOKFe37H5x9SMCg6OoWN8+duH9DkWTb6C3vXXWPTf5hQq8y/6rAbuKH/t2AW5Qg6\nZsB7VY4Pl7ADeLvfbgiYLjRceOi8fbTXrmPWI5OLwQKBgQDeCZncRU4SA0h2oHBJ\nF9Ql3dZV3ebWCy8JOAt2mkpEE1y5CZd76g9ZJ08fiNUozsWxhj2Bk34VJieWSJS8\nm9qFJlbTyL6wgooJbIpTHHYxFvxkgRxfrXLKD65v6SApyOtM2DjHCivC1mNwMDTK\nHGfIh03HRmxfiRCj2ihuour43QKBgQDHhDHMeTMDXnMq4zXqRnnyAhHgif6m5ope\npYbmuBZWJqH12tOPxivzc0rbNf2YIbz4wqFlEmOpIeMJLutAQ0AeXwIe3RLcvme+\nRc8Q7ArWInciuUV5pYdwHFms5twHhDv3E3hDA2iHNOZR+yYs6Gr6mPRoNIQ4JVBU\nt6EO5k6nkQKBgFCgf+SCriTQWGHrRJrmMj1F3uzzVT1odj4MwezhfhJWTZdLqlxu\n0//1zD+ROoZE/3jFXFRPMLuRTVK/LHOIzMMI9wKUpNoHrQRbC6e+cBTHWgNM9vav\nTz2ckCVHLEzADuGqqoNsaBOqMhWtC55Qzkb9CvtP0U6nwQke0QvL0TNpAoGAIkd4\nNuVr+lwz9V5sWQAa25W3dJjBA/QAOhq+fs2KKOsiUJd0WfN2gbGBXwB7vbOuQB9Q\nk4kBToHf/Cfvi28CiTVRq/PX1c1xDaP427NyeTAawACNC0WBa6WzUp2nmDMECoNx\n2jGvt+tC1zsLaBPWrY+yDmVXgj4G+0dBiMnRIcECgYBd077a83UIKEckj+aaLxkt\n/ASnrptEak1fDj5SU88y//sJDVWSqzh5TsS691REL43PHBToFylv4PLGajCFIOCR\nAjW/XQJKDRbm0jbuZ7PLWEMmIXKAEkXXTYImpF6QrvhHva36EQdCHDpeaT4PuHBF\nHs9fclxVmjg7OPpOa0IhEA==\n-----END PRIVATE KEY-----\n",
+  "client_email": "ankit-898@test-vbdjvh.iam.gserviceaccount.com",
+  "client_id": "108196467150891344659",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/ankit-898%40test-vbdjvh.iam.gserviceaccount.com"  
+};
+
+
+
+
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request,response) =>{
+  const agent = new WebhookClient({request, response });
+console.log('Dialogflow Request headers: ' + JSON.stringify(request.headers));
+console.log('Dialogflow Request body: ' + JSON.stringify(request.body));
+ 
+
+ //const vision = require('@google-cloud/vision');
+function applyML(agent){
+   // const filename = agent.parameters.filename;
+    const filename = agent.parameters.filename;
+  console.log("filename is: ", filename);
+  console.log("bucketName is: ", bucketName);
+
+    // call vision API to detect text
+    return callVisionApi(agent, bucketName, filename).then(result => {
+       console.log(`result is ${result}`);
+      console.log('Dialogflow Request headers: ' + JSON.stringify(request.headers));
+      console.log('Dialogflow Request body: ' + JSON.stringify(request.body));
+ 
+      agent.add(`bucket name  ################:  ${bucketName}`);
+      agent.add(`FILENAME name  is ############:  ${filename}`);
+   //                   agent.add(`file is being processed, here are the results:  ${result}`);
+          agent.add(`file is being processed ${result}`);
+        }).catch((error)=> {
+            agent.add(`error occurred at apply ml function`  + error);
+        });
+  }
+ 

@@ -1,0 +1,169 @@
+const functions = require('firebase-functions');
+const {WebhookClient} = require('dialogflow-fulfillment');
+const {google} = require('googleapis');
+const vision = require('@google-cloud/vision');
+const {Card, Suggestion} = require('dialogflow-fulfillment');
+const axios = require('axios');
+
+// initialise DB connection
+const admin = require('firebase-admin');
+admin.initializeApp({
+  credential: admin.credential.applicationDefault(),
+  databaseURL: 'ws://agricultural-bot-njdmck-63206.firebaseio.com/',
+});
+process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
+ 
+
+ 
+//providing storage details:
+const bucketName = 'agricultural-bot-njdmck.appspot.com';
+//console.log("Parameters", agent.parameters);
+const getNameHandler = "get_type";
+const applyML = "explore_image";
+
+
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request,response) =>{
+  const agent = new WebhookClient({request, response });
+console.log('Dialogflow Request headers: ' + JSON.stringify(request.headers));
+console.log('Dialogflow Request body: ' + JSON.stringify(request.body));
+ 
+//let type = request.body.queryResult.parameters.type;
+ 
+function vegetation_schedule(agent)
+  {
+    let type = agent.parameters.type;
+
+   agent.add(`fulfillment:you selected type: ${type}`);
+      if(type.toLowerCase() == "herbs"){
+ agent.add(`you selected ${type}. You can grow below herbs based on the schedule. Basil - May to October, Corriander - June to September, Parsley - May to December, Dill - June to October.Do you wish to know anything else?`);
+ }
+ else if(type.toLowerCase() == "salads"){
+ agent.add(`you selected ${type}.You can grow below salads based on the schedule. Celery - July to November, Courgettes from July to September, Cucumbers from May to September, Lettuce from June to September.Do you wish to know anything else?`);
+ }
+ else if(type.toLowerCase() == "Fruits"){
+ agent.add(`you selected ${type}. You can grow below Fruits based on the schedule. Apples in October, blackberries in August, strawberries from June to October, Raspberries from July to October.Do you wish to know anything else?`);
+ }
+ else if(type.toLowerCase() == "vegetables"){
+ agent.add(`you selected ${type}. You can grow below vegetables based on the schedule. Asparagus from May and June, Aubergines From May to August, Beetroot from August to Feb, Broad beans from June to August, Brocolli from June till November.Do you wish to know anything else ?`);
+ }
+ else{
+ agent.add("Sorry , i dont Understand this ");
+ }  
+}
+ 
+function visionapi(agent){
+   // const filename = agent.parameters.filename;
+   // const filename = request.body.queryResult.parameters.filename;
+    console.log("filename is: ", filename);
+
+    // call vision API to detect text
+   // return callVisionApi(agent, bucketName, filename).then(result => {
+    return callVisionApi(agricultural_bot, agricultural-bot-njdmck.appspot.com, demo.jpg).then(result => {
+                      console.log(`result is ${result}`);
+                      agent.add(`file is being processed, here are the results:  ${result}`);
+            //agent.add(`file is being processed ${result}`);
+        }).catch((error)=> {
+            agent.add(`error occurred at apply ml function`  + error);
+        });
+}
+
+var CVFNews = axios.create({
+    method: 'get',
+    baseURL: 'https://api-beta.civicfeed.com',
+    headers: {'x-api-key': 'Ah3qLhN4ZS3LffYa1eFNu930KzSOiaL22np8ctym'}
+    });  
+ 
+function news(agent) {
+  console.log('news function', JSON.stringify(request.body.queryResult.parameters));
+  const word = request.body.queryResult.parameters.search;
+  return CVFNews.get('/news/search?q='+encodeURIComponent(word)+'&limit=1&tags=news').then(function(response){
+    const {title, source} = response.data.articles[0];
+    console.log('response', response.data.articles[0]);
+    return agent.add('The last article about ' + word + ' was: ' + title + ' and was published by ' + source.name);
+    }).catch(function(error){
+    console.log(error);
+  });
+}
+ 
+function ReadfromDB(agent){  
+
+const DBName = agent.parameters.DBName;
+
+return admin.database().ref('vegetables').once('value').then((snapshot) => {
+  var details = snapshot.child(DBName).val();
+  if (snapshot.hasChild(`${DBName}`)){
+   // agent.add(`${DBName} already exists in database.`);
+    agent.add(`Below are the details:`);
+        var time_to_grow = details.grow_time;
+    var ph_val = details.ph_value;
+    var ph_season = details.growing_season;
+    agent.add(`***************************************`);
+    agent.add(`Plant name  is  #:${DBName}`);
+    agent.add(`Time for growth for ${DBName} #:${time_to_grow}`);
+    agent.add(`Soil ph value for ${DBName} #:${ph_val}`);
+    agent.add(`Growing season for ${DBName} #:${ph_season}`);
+    agent.add(`***************************************`);
+  }
+  else{
+    agent.add(`I do not have information about this`);
+    agent.add(`**Expert **Please provide information about ## ${DBName}:`);
+  }
+});
+}
+ 
+ 
+function WritetoDB(agent){  
+  var DBName = request.body.queryResult.parameters.DBName;
+  var grow_time = agent.parameters.grow_time11;
+  var growing_season = agent.parameters.growing_season11;
+  var ph_value = agent.parameters.ph_value11;
+ 
+
+  agent.add(`Thanks Expert for the details, below data has been updated in Database:`);
+   agent.add(`***************************************`);
+  agent.add(`**plant name is ${DBName}:`);
+  agent.add(`**grow_time is ${grow_time}:`);
+  agent.add(`**growing_season is ${growing_season}:`);
+  agent.add(`**ph value is ${ph_value}:`);
+  agent.add(`***************************************`);
+ return admin.database().ref('vegetables').child(`${DBName}`).set({
+     grow_time: `${grow_time}`,
+     growing_season: `${growing_season}`,
+ph_value : `${ph_value}`,
+   
+});
+ 
+}
+ 
+async function callVisionApi(agent, bucketName, filename){
+    // [START vision_text_detection_gcs]
+  // Imports the Google Cloud client libraries
+  // Creates a client
+ 
+  const client = new vision.ImageAnnotatorClient();
+  try {
+    // Performs text detection on the gcs file
+    const [result] = await client.landmarkDetection(`gs://agricultural-bot-njdmck.appspot.com/demo.jpg`);
+    const detections = result.landmarkAnnotations;
+    var detected = [];
+    detections.forEach(text => {
+    console.log(text.description);
+    detected.push(text.description);
+   });
+    return detected;
+    }
+    catch(error) {
+      console.log('fetch failed', error);
+      return [];
+    }
+}
+ 
+   
+let intentMap = new Map();
+intentMap.set('get_type', vegetation_schedule);
+intentMap.set('explore_image', visionapi);
+intentMap.set('news', news);
+intentMap.set('DBName_intent', ReadfromDB);
+intentMap.set('ask_expert', WritetoDB);
+agent.handleRequest(intentMap);
+});

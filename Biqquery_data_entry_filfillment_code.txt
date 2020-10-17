@@ -1,0 +1,66 @@
+'use strict';
+
+const functions = require('firebase-functions');
+const {google} = require('googleapis');
+const {WebhookClient} = require('dialogflow-fulfillment');
+const BIGQUERY = require('@google-cloud/bigquery');
+
+process.env.DEBUG = 'dialogflow:*'; // enables lib debugging statements
+
+const timeZone = 'America/Los_Angeles';
+const timeZoneOffset = '-07:00';
+
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest((request, response) => {
+  const agent = new WebhookClient({ request, response });
+  console.log("Parameters", agent.parameters);
+  const appointment_type = agent.parameters.AppointmentType;
+
+// Function to create appointment in calendar  
+function makeAppointment (agent) {
+      addToBigQuery(agent);
+      }
+
+  let intentMap = new Map();
+  intentMap.set('appointment_scheduler', makeAppointment);
+  agent.handleRequest(intentMap);
+});
+
+//Add data to BigQuery
+function addToBigQuery(agent) {
+    return new Promise((resolve, reject) => {
+    console.log(`add to bigquery tak pahunch gaya!`);    
+    const msg = agent.query;
+    const user_id = "user2";
+    /**
+    * TODO(developer): Uncomment the following lines before running the sample.
+    */
+    const projectId = "sentimental-big-query-gf9j"; 
+    const datasetId = "sentiment";
+    const tableId = "sentiment_tb";
+    const bigquery = new BIGQUERY({
+      projectId: projectId
+    });
+   const rows = [{user_id: user_id, message:msg }];
+  console.log(` ${rows}`);
+   bigquery
+  .dataset(datasetId)
+  .table(tableId)
+  .insert(rows)
+  .then(() => {
+    console.log(`Inserted ${rows.length} rows`);
+  })
+  .catch(err => {
+    if (err && err.name === 'PartialFailureError') {
+      if (err.errors && err.errors.length > 0) {
+        console.log('Insert errors:');
+        err.errors.forEach(err => console.error(err));
+      }
+    } else {
+      console.error('ERROR:', err);
+    }
+  });
+  agent.add(`Added ${user_id} and ${msg} into the table`);
+
+    
+  });
+}
